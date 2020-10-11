@@ -52,7 +52,7 @@ target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior
 target_sources_ifdef(CONFIG_ZMK_BLE app PRIVATE src/behaviors/behavior_bt.c)
 target_sources_ifdef(CONFIG_ZMK_BLE app PRIVATE src/ble.c)
 target_sources_ifdef(CONFIG_ZMK_SPLIT_BLE_ROLE_PERIPHERAL app PRIVATE src/split_listener.c)
-target_sources(app PRIVATE src/split/onewire/onewire_service.c)
+target_sources(app PRIVATE src/split/onewire/onewire_peripheral.c)
 #target_sources_ifdef(CONFIG_ZMK_SPLIT_BLE_ROLE_PERIPHERAL app PRIVATE src/split/bluetooth/service.c)
 target_sources_ifdef(CONFIG_ZMK_SPLIT_BLE_ROLE_CENTRAL app PRIVATE src/split/bluetooth/central.c)
 target_sources_ifdef(CONFIG_ZMK_KSCAN_MOCK_DRIVER app PRIVATE src/kscan_mock.c)

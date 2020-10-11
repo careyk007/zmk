@@ -51,7 +51,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define FLAGS_OR_ZERO(node)                             \
     COND_CODE_1(DT_PHA_HAS_CELL(node, gpios, flags),    \
             (DT_GPIO_FLAGS(node, gpios)),               \
-            (0)
+            (0))
 
 #define ONEWIRE_NODE   DT_ALIAS(onewire0)
 #if DT_NODE_HAS_STATUS(ONEWIRE_NODE, okay) && DT_NODE_HAS_PROP(ONEWIRE_NODE, gpios)
@@ -66,7 +66,6 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #endif
 
 #define POSITION_STATE_DATA_LEN     16
-static u8_t num_of_positions = ZMK_KEYMAP_LEN;
 static u8_t position_state[POSITION_STATE_DATA_LEN];
 
 static struct device *onewire_dev;
@@ -82,27 +81,13 @@ static void onewire_send_byte(u8_t byte) {
     }
 }
 
-static u8_t onewire_read_byte(void) {
-    u8_t byte = 0;
-    for (int i = 0; i < sizeof(byte); ++i) {
-        int pin_value = gpio_pin_get(onewire_dev, ONEWIRE_GPIO_PIN);
-        if (pin_value >= 0) {
-            byte |= pin_value << i;
-        } else {
-            log("Pin read error: %d", pin_value);
-        }
-        k_busy_wait(ONE_PERIOD_US);
-    }
-    return byte;
-}
-
 static void onewire_start_transmission(u8_t length) {
     onewire_send_byte(FRAMING_SYMBOL);
     onewire_send_byte(length);
 }
 
-static void onewire_end_transmission(u8_t length) {
-    gpio_pin_set(onewire_port, onewire_pin, 1);
+static void onewire_end_transmission(void) {
+    gpio_pin_set(onewire_dev, ONEWIRE_GPIO_PIN, 1);
 }
 
 static void send_onewire_data(u8_t *data, u8_t length) {
@@ -116,32 +101,36 @@ static void send_onewire_data(u8_t *data, u8_t length) {
 
 int zmk_split_onewire_position_pressed(u8_t position) {
     WRITE_BIT(position_state[position/8], position % 8, true);
-    send_onewire_data(position_state, sizeof(position_state))
+    send_onewire_data(position_state, sizeof(position_state));
+    return 0;
 }
 
 int zmk_split_onewire_position_released(u8_t position) {
     WRITE_BIT(position_state[position/8], position % 8, false);
-    send_onewire_data(position_state, sizeof(position_state))
+    send_onewire_data(position_state, sizeof(position_state));
+    return 0;
 }
 
 static int onewire_init(struct device *_arg) {
     onewire_dev = device_get_binding(ONEWIRE_GPIO_LABEL);
     if (onewire_dev == NULL) {
-        log("Didn't find onewire device %s\n", ONEWIRE_GPIO_LABEL);
-        return NULL;
+        LOG_DBG("Didn't find onewire device %s\n", ONEWIRE_GPIO_LABEL);
+        return 1;
     }
 
-    ret = gpio_pin_configure(onewire_dev, ONEWIRE_GPIO_PIN, ONEWIRE_GPIO_FLAGS);
+    int ret = gpio_pin_configure(onewire_dev, ONEWIRE_GPIO_PIN, ONEWIRE_GPIO_FLAGS);
     if (ret != 0) {
-        log("Error %d: failed to configure onewire device %s pin %d\n",
+        LOG_DBG("Error %d: failed to configure onewire device %s pin %d\n",
                ret, ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
-        return NULL;
+        return 1;
     }
 
     /* Setup pin for peripheral */
     gpio_pin_set(onewire_dev, ONEWIRE_GPIO_PIN, 1);
 
-    log("Set up onewire at %s pin %d\n", ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
+    LOG_DBG("Set up onewire at %s pin %d\n", ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
+
+    return 0;
 }
 
 SYS_INIT(onewire_init, APPLICATION, CONFIG_ZMK_BLE_INIT_PRIORITY);

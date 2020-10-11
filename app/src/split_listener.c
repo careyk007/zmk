@@ -10,7 +10,8 @@
 #include <power/reboot.h>
 #include <logging/log.h>
 
-#include <zmk/split/bluetooth/service.h>
+//#include <zmk/split/bluetooth/service.h>
+#include <zmk/split/onewire/onewire.h>
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -24,9 +25,11 @@ int split_listener(const struct zmk_event_header *eh) {
     if (is_position_state_changed(eh)) {
         const struct position_state_changed *ev = cast_position_state_changed(eh);
         if (ev->state) {
-            return zmk_split_bt_position_pressed(ev->position);
+            //return zmk_split_bt_position_pressed(ev->position);
+            return zmk_split_onewire_position_pressed(ev->position);
         } else {
-            return zmk_split_bt_position_released(ev->position);
+            //return zmk_split_bt_position_released(ev->position);
+            return zmk_split_onewire_position_released(ev->position);
         }
     }
     return 0;

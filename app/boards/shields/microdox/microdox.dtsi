@@ -42,7 +42,18 @@ RC(2,0) RC(2,1) RC(2,2) RC(2,3) RC(2,4)  RC(2,5) RC(2,6) RC(2,7) RC(2,8) RC(2,9)
 		
 	};
 
+	buttons {
+		compatible = "gpio-keys";
+		onewire: _onewire {
+			gpios = <&pro_micro_d 0 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+			label = "onewire pin";
+		};
+	};
+
 	// TODO: per-key RGB node(s)?
+	aliases {
+		onewire0 = &onewire;
+	};
 };
 
 &pro_micro_i2c {

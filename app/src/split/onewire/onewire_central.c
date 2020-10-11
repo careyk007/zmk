@@ -36,6 +36,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include <zmk/matrix.h>
 #include <zmk/split/onewire/onewire.h>
+#include <zmk/event-manager.h>
+#include <zmk/events/position-state-changed.h>
 
 
 #define ONE_PERIOD_US   (50)
@@ -51,7 +53,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define FLAGS_OR_ZERO(node)                             \
     COND_CODE_1(DT_PHA_HAS_CELL(node, gpios, flags),    \
             (DT_GPIO_FLAGS(node, gpios)),               \
-            (0)
+            (0))
 
 #define ONEWIRE_NODE   DT_ALIAS(onewire0)
 #if DT_NODE_HAS_STATUS(ONEWIRE_NODE, okay) && DT_NODE_HAS_PROP(ONEWIRE_NODE, gpios)
@@ -66,7 +68,6 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #endif
 
 #define POSITION_STATE_DATA_LEN     16
-static u8_t num_of_positions = ZMK_KEYMAP_LEN;
 static u8_t position_state[POSITION_STATE_DATA_LEN];
 
 static struct device *onewire_dev;
@@ -78,7 +79,7 @@ static u8_t onewire_read_byte(void) {
         if (pin_value >= 0) {
             byte |= pin_value << i;
         } else {
-            log("Pin read error: %d", pin_value);
+            LOG_DBG("Pin read error: %d", pin_value);
         }
         k_busy_wait(ONE_PERIOD_US);
     }
@@ -96,18 +97,15 @@ static void onewire_cb(struct device *dev, struct gpio_callback *cb, uint32_t pi
 
     if (data_length < sizeof(position_state)) {
         for (int i = 0; i < data_length; i++) {
-            position_state[i] = onewire_read_byte();
+            u8_t data = onewire_read_byte();
+            changed_positions[i] = data ^ position_state[i];
+            position_state[i] = data;
         }
     } else {
-        log("Error, data length was too long: %d", data_length);
+        LOG_DBG("Error, data length was too long: %d", data_length);
     }
     
-    for (int i = 0; i < POSITION_STATE_DATA_LEN; i++) {
-        changed_positions[i] = ((u8_t *)data)[i] ^ position_state[i];
-        position_state[i] = ((u8_t *)data)[i];
-    }
-
-    for (int i = 0; i < POSITION_STATE_DATA_LEN; i++) {
+    for (int i = 0; i < data_length; i++) {
         for (int j = 0; j < 8; j++) {
             if (changed_positions[i] & BIT(j)) {
                 u32_t position = (i * 8) + j;
@@ -129,27 +127,24 @@ static void onewire_cb(struct device *dev, struct gpio_callback *cb, uint32_t pi
 static int onewire_init(struct device *_arg) {
     onewire_dev = device_get_binding(ONEWIRE_GPIO_LABEL);
     if (onewire_dev == NULL) {
-        log("Didn't find onewire device %s\n", ONEWIRE_GPIO_LABEL);
-        return NULL;
+        LOG_DBG("Didn't find onewire device %s\n", ONEWIRE_GPIO_LABEL);
+        return 1;
     }
 
-    ret = gpio_pin_configure(onewire_dev, ONEWIRE_GPIO_PIN, ONEWIRE_GPIO_FLAGS);
+    int ret = gpio_pin_configure(onewire_dev, ONEWIRE_GPIO_PIN, ONEWIRE_GPIO_FLAGS);
     if (ret != 0) {
-        log("Error %d: failed to configure onewire device %s pin %d\n",
+        LOG_DBG("Error %d: failed to configure onewire device %s pin %d\n",
                ret, ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
-        return NULL;
+        return 1;
     }
 
-    /* Setup pin for peripheral */
-    gpio_pin_set(onewire_dev, ONEWIRE_GPIO_PIN, 1);
-
-
-    /* Setup pin for central */
     gpio_pin_interrupt_configure(onewire_dev, ONEWIRE_GPIO_PIN, GPIO_INT_EDGE_TO_INACTIVE);
     gpio_init_callback(&onewire_callback, onewire_cb, BIT(ONEWIRE_GPIO_PIN));
     gpio_add_callback(onewire_dev, &onewire_callback);
 
-    log("Set up onewire at %s pin %d\n", ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
+    LOG_DBG("Set up onewire at %s pin %d\n", ONEWIRE_GPIO_LABEL, ONEWIRE_GPIO_PIN);
+
+    return 0;
 }
 
 SYS_INIT(onewire_init, APPLICATION, CONFIG_ZMK_BLE_INIT_PRIORITY);
